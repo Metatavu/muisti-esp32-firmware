@@ -187,7 +187,6 @@ void parseMessageWithType(uint32_t type, uint32_t message[], MessageParser parse
     handleInventoryResponse(parser.parseContinueInventoryResponse(message));
     break;
   case STOP_CONTINUE_INVENTORY_RESPONSE:
-    // Serial.println("Message type was 'stop continue inventory response'\n");
     stopSuccessfull = parser.parseStopContinueInventoryResponse(message);
     break;
   default:
