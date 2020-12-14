@@ -183,7 +183,6 @@ void handleInventoryResponse(ContinueInventoryMessage message) {
 void parseMessageWithType(uint32_t type, uint32_t message[], MessageParser parser) {
   switch (type) {
   case CONTINUE_INVENTORY_RESPONSE:
-    // Serial.println("Message type was 'continue inventory response'\n");
     handleInventoryResponse(parser.parseContinueInventoryResponse(message));
     break;
   case STOP_CONTINUE_INVENTORY_RESPONSE:
