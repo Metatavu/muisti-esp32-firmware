@@ -24,7 +24,7 @@ bool wifiConnected = false;
 static bool stopSuccessfull = false;
 static bool startSuccessfull = false;
 
-//Serial buffer
+// Serial buffer
 const uint32_t messageBufferSize = 256;
 uint32_t antennaInputBuffer[messageBufferSize];
 uint32_t antennaMessageLength = 0;
