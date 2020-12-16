@@ -154,16 +154,12 @@ class MessageParser {
       std::string frequency = constructHexString(message, 22, 24);
       std::string phase = constructHexString(message, 25, 25);
 
-      ContinueInventoryMessage responseMessage(
-        message[4],
-        pc,
-        epc,
-        transformRssiToSignalStrength(-rssi / 10.0),
-        message[21],
-        hexStringToInt(frequency) / 1000.00,
-        message[25]
-      );
-      return responseMessage;
+      ContinueInventoryMessage result;
+      result.antenna = message[21];
+      result.strength = transformRssiToSignalStrength(-rssi / 10.0);
+      result.epc = epc;
+
+      return result;
     }
 
     /**

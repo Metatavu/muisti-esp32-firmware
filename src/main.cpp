@@ -2,36 +2,142 @@
 #include <MQTTClient.h>
 #include <ArduinoJson.h>
 #include "WiFi.h"
-#include "FS.h"
-#include "SPIFFS.h"
-#include "SD_MMC.h"
 #include "secrets.h"
 #include "message-parser.cpp"
+
+#define MQTT_FLUSH_INTERVAL_MS 100
+#define START_RETRY_TIMEOUT_MS 30000
+#define TAG_DISAPPEARED_TIMEOUT_MS 1500
 
 WiFiClient net = WiFiClient();
 MQTTClient client = MQTTClient(4096);
 
 String deviceId = "";
 
+/**
+ * Struct for tag registry items
+ */
+struct TagRegistryItem {
+  std::string epc;
+  unsigned long lastSeen;
+  int16_t antenna;
+};
+
 bool wifiConnected = false;
-static bool recvInProgress = false;
 static bool stopSuccessfull = false;
 static bool startSuccessfull = false;
 
+// Serial buffer
 const uint32_t messageBufferSize = 256;
 uint32_t antennaInputBuffer[messageBufferSize];
 uint32_t antennaMessageLength = 0;
 
 // Message markers
-const uint32_t messageStartMarker = 0xA5;
-const uint32_t messageEndMarker[2] = { 0x0D, 0x0A };
+const uint16_t messageStartMarker[2] = { 0xA5, 0x5A };
+const uint16_t messageEndMarker[2] = { 0x0D, 0x0A };
+
+// Epc registry
+const uint16_t registryBufferSize = 100;
+TagRegistryItem registry[registryBufferSize];
+uint16_t registryLength = 0;
+
+// Quere buffer
+const uint16_t queueBufferSize = 100;
+ContinueInventoryMessage queue[queueBufferSize];
+uint16_t queueLength = 0;
+
+uint16_t previousByte = 0;
 
 // Device commands
 const uint32_t stopAntennaCommand[8] = { 0xA5, 0x5A, 0x00, 0x08, 0x8C, 0x84, 0x0D, 0x0A };
 const uint32_t startAntennaCommand[10] = { 0xA5, 0x5A, 0x00, 0x0A, 0x82, 0x27, 0x10, 0xBF, 0x0D, 0x0A };
 const uint32_t askHWVersionCommand[8] = { 0xA5, 0x5A, 0x00, 0x08, 0x00, 0x08, 0x0D, 0x0A };
 
-static MessageParser parser({});
+unsigned long lastContinueAttempt = 0;
+unsigned long lastMqttFlush = 0;
+
+static MessageParser parser;
+
+/**
+ * Publishes message to mqtt broker
+ * 
+ * @param epc tag epc
+ * @param strength signal strength
+ * @param antenna antenna id
+ */
+void publishMQTTMessage(std::string epc, double strength, uint16_t antenna) {
+  StaticJsonDocument<200> doc;
+  doc["tag"] = epc;
+  doc["strength"] = strength;
+  char jsonBuffer[512];
+  serializeJson(doc, jsonBuffer);
+  client.publish(MQTT_TOPIC_PREFIX + "/" + MQTT_TOPIC + "/" + deviceId + "/" + antenna, jsonBuffer);
+}
+
+/**
+ * Adds message received from serial to queue
+ * also updates registry, if tag with same epc and antenna is found last seen value is updated to current time,
+ * otherwise tag is added to registry
+ * 
+ * @param message messaged received from serial
+ */
+void addToQueue(ContinueInventoryMessage message) {
+  boolean foundFromRegistry = false;
+  for (uint16_t i = 0; i < registryLength; i++) {
+    if (message.epc == registry[i].epc && message.antenna == registry[i].antenna) {
+      registry[i].lastSeen = millis();
+      foundFromRegistry = true;
+    }
+  }
+
+  if (!foundFromRegistry) {
+    registry[registryLength] = { epc: message.epc, lastSeen: millis(), antenna: message.antenna };
+    registryLength++;
+    if (registryLength >= registryBufferSize) {
+      registryLength = registryBufferSize - 1;
+      Serial.println("WARNING!! Epc registry overflow, losing data");
+    }
+  }
+
+  for (uint16_t i = 0; i < queueLength; i++) {
+    if (queue[i].antenna == message.antenna && queue[i].epc == message.epc) {
+      queue[i] = message;
+      return;
+    }
+  }
+
+  if (queueLength >= queueBufferSize) {
+    queueLength = queueBufferSize - 1;
+    Serial.println("WARNING!! Message queue overflow, losing data");
+  }
+  queue[queueLength] = message;
+  queueLength++;
+}
+
+/**
+ * Flushes message queue to mqtt broker
+ * Also checks if tags have not been seen 
+ * in a while and sends message with strength of 0 for those tags
+ */
+void flushQueue() {
+  for (uint16_t i = 0; i < queueLength; i++) {
+    ContinueInventoryMessage message = queue[i];
+    publishMQTTMessage(message.epc, message.strength, message.antenna);
+  }
+  queueLength = 0;
+
+  unsigned long now = millis();
+  uint16_t newRegistrySize = 0;
+  for (uint16_t i = 0; i < registryLength; i++) {
+    if (now - registry[i].lastSeen > TAG_DISAPPEARED_TIMEOUT_MS) {
+      publishMQTTMessage(registry[i].epc, 0.0, registry[i].antenna);
+    } else {
+      registry[newRegistrySize] = registry[i];
+      newRegistrySize++;
+    }
+  }
+  registryLength = newRegistrySize;
+}
 
 /**
  * MQTT message handler
@@ -116,45 +222,36 @@ void connectToMQTT() {
  * Read message from antenna
  */
 void read() {
-  static uint32_t ndx = 0;
-  static bool firstEndMarkerFound = false;
-  static bool secondEndMarkerFound = false;
-  uint32_t rc = Serial1.read();
-  if (recvInProgress == true) {
-
-    if (rc == messageEndMarker[0]) {
-      firstEndMarkerFound = true;
-      antennaInputBuffer[ndx] = rc;
-    } else if (rc == messageEndMarker[1]) {
-      secondEndMarkerFound = true;
-      antennaInputBuffer[ndx] = rc;
-    } else {
-      firstEndMarkerFound = false;
-      secondEndMarkerFound = false;
-      antennaInputBuffer[ndx] = rc;
-      if (ndx >= messageBufferSize) {
-        Serial.println(ndx);
-        ndx = messageBufferSize - 1;
-      }
-    }
-
-    if (firstEndMarkerFound && secondEndMarkerFound) {
-      recvInProgress = false;
-      antennaMessageLength = ndx + 1;
-      ndx = 0;
-    }
-
-  } else if (rc == messageStartMarker) {
+  static uint16_t ndx = 0;
+  static bool recvInProgress = false;
+  uint16_t rc = Serial1.read();
+  if (previousByte == messageStartMarker[0] && rc == messageStartMarker[1]) {
+    // Message start detected
     recvInProgress = true;
-    firstEndMarkerFound = false;
-    secondEndMarkerFound = false;
-    ndx = 0;
+    antennaInputBuffer[0] = previousByte;
+    antennaInputBuffer[1] = rc;
+    ndx = 2;
     antennaMessageLength = 0;
+  } else if (recvInProgress && previousByte == messageEndMarker[0] && rc == messageEndMarker[1]) {
+    // Message end detected
+    if (ndx >= messageBufferSize - 3) {
+      ndx = messageBufferSize - 3;
+      Serial.println("WARNING!! input buffer overflow, losing data");
+    }
+    recvInProgress = false;
+    antennaInputBuffer[ndx] = previousByte;
+    antennaInputBuffer[ndx + 1] = rc;
+    antennaMessageLength = ndx + 2;
+    ndx = 0;
+  } else if (recvInProgress) {
+    if (ndx >= messageBufferSize) {
+      ndx = messageBufferSize - 1;
+      Serial.println("WARNING!! input buffer overflow, losing data");
+    }
     antennaInputBuffer[ndx] = rc;
-  } else {
-    Serial.println("Got incorrect start hex!");
+    ndx++;
   }
-  ndx++;
+  previousByte = rc;
 }
 
 /**
@@ -164,12 +261,7 @@ void read() {
  */
 void handleInventoryResponse(ContinueInventoryMessage message) {
   startSuccessfull = true;
-  StaticJsonDocument<200> doc;
-  doc["tag"] = message.getEpc();
-  doc["strength"] = message.getStrength();
-  char jsonBuffer[512];
-  serializeJson(doc, jsonBuffer);
-  client.publish(MQTT_TOPIC_PREFIX + "/" + MQTT_TOPIC + "/" + deviceId + "/" + message.getAntenna(), jsonBuffer);
+  addToQueue(message);
 }
 
 /**
@@ -233,6 +325,7 @@ void setup() {
   deviceId = WiFi.macAddress();
   Serial.begin(9600);
   Serial1.begin(115200);
+  Serial.println(deviceId);
 
   connectToNetwork();
   connectToMQTT();
@@ -241,6 +334,7 @@ void setup() {
   //   Serial.println("Succesfully subscribed to topic");
   // }
   stopInventory();
+  continueInventory();
 }
 
 /**
@@ -256,17 +350,23 @@ void loop() {
     connectToMQTT();
   }
 
-  if (!startSuccessfull) {
+  if (!startSuccessfull && millis() - lastContinueAttempt > START_RETRY_TIMEOUT_MS) {
+    lastContinueAttempt = millis();
     continueInventory();
   }
 
-  while (Serial1.available()) {
+  if (Serial1.available()) {
     read();
   }
 
-  if (antennaMessageLength > 0 && !recvInProgress) {
+  if (antennaMessageLength > 0) {
     parseAntennaMessage();
     antennaMessageLength = 0;
+  }
+
+  if (millis() - lastMqttFlush > MQTT_FLUSH_INTERVAL_MS) {
+    lastMqttFlush = millis();
+    flushQueue();
   }
 
   client.loop();
