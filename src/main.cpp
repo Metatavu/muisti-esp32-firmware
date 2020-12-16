@@ -358,7 +358,6 @@ void loop() {
 
   if (antennaMessageLength > 0) {
     parseAntennaMessage();
-    //printDeviceHexMessage();
     antennaMessageLength = 0;
   }
 
