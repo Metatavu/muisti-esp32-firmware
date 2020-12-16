@@ -6,8 +6,9 @@
 #include "artifactory-ota.h"
 
 #define MQTT_FLUSH_INTERVAL_MS 100
-#define START_RETRY_TIMEOUT_MS 30000
+#define START_RETRY_TIMEOUT_MS 3000
 #define TAG_DISAPPEARED_TIMEOUT_MS 1500
+#define SERIAL_MESSAGE_FAILED_TIMEOUT_MS 30000
 #define OTA_CHECK_INTERVAL_MS 60000
 
 WiFiClient net = WiFiClient();
@@ -57,6 +58,7 @@ const uint32_t askHWVersionCommand[8] = { 0xA5, 0x5A, 0x00, 0x08, 0x00, 0x08, 0x
 unsigned long lastContinueAttempt = 0;
 unsigned long lastMqttFlush = 0;
 unsigned long lastOtaCheck = 0;
+unsigned long lastMessageReceived = 0;
 
 static MessageParser parser;
 
@@ -154,33 +156,27 @@ void messageHandler(String &topic, String &payload) {
  * Sends stop inventory command to device
  */
 void stopInventory() {
-  Serial.println("Sending stop continue inventory command...");
   for (int i = 0; i < 8; i++) {
     Serial1.write(stopAntennaCommand[i]);
   }
-  Serial.println("Sent stop inventory command");
 }
 
 /**
  * Sends continue inventory command to device
  */
 void continueInventory() {
-  Serial.println("Sending continue inventory command...");
   for (int i = 0; i < 10; i++) {
     Serial1.write(startAntennaCommand[i]);
   }
-  Serial.println("Sent continue inventory command");
 }
 
 /**
  * Sends ask hardware version command to device
  */
 void askHardwareVersion() {
-  Serial.println("Sending ask hardware version command...");
   for (int i = 0; i < 8; i++) {
     Serial1.write(askHWVersionCommand[i]);
   }
-  Serial.println("Sent ask hardware versioncommand");
 }
 
 /**
@@ -265,6 +261,7 @@ void read() {
  */
 void handleInventoryResponse(ContinueInventoryMessage message) {
   startSuccessfull = true;
+  lastMessageReceived = millis();
   addToQueue(message);
 }
 
@@ -323,6 +320,15 @@ void parseAntennaMessage() {
 }
 
 /**
+ * Initializes serial communications
+ */
+void initializeCommunication() {
+  stopInventory();
+  delay(50);
+  continueInventory();
+}
+
+/**
  * Setup process
  */
 void setup() {
@@ -333,12 +339,8 @@ void setup() {
 
   connectToNetwork();
   connectToMQTT();
-  //TODO: Add proper MQTT topic for OTA-update trigger
-  // if (client.subscribe("/mqtt/muisti/beta")) {
-  //   Serial.println("Succesfully subscribed to topic");
-  // }
-  stopInventory();
-  continueInventory();
+  delay(50);
+  initializeCommunication();
 }
 
 /**
@@ -358,9 +360,13 @@ void loop() {
     connectToMQTT();
   }
 
+  if (startSuccessfull && millis() - lastMessageReceived > SERIAL_MESSAGE_FAILED_TIMEOUT_MS) {
+    startSuccessfull = false;
+  }
+
   if (!startSuccessfull && millis() - lastContinueAttempt > START_RETRY_TIMEOUT_MS) {
     lastContinueAttempt = millis();
-    continueInventory();
+    initializeCommunication();
   }
 
   if (Serial1.available()) {

@@ -80,7 +80,6 @@ void checkFirmwareUpdates() {
     Serial.println("Could not load info about the latest firmware, so nothing to update. Continue ...");
     return;
   } else if (atoi(latest.c_str()) <= VERSION) {
-    Serial.println("The current firmware is up to date. Continue ...");
     return;
   }
 
