@@ -52,6 +52,5 @@ def publish_firmware(source, target, env):
 
     print("The firmware has been successfuly published")
 
-
 # Custom upload command and program name
 env.Replace(PROGNAME="firmware_v_%s" % version, UPLOADCMD=publish_firmware)

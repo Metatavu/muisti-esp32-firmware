@@ -11,10 +11,18 @@ String token = ARTIFACTORY_API_TOKEN;
 volatile int contentLength = 0;
 volatile bool isValidContentType = false;
 
+/**
+ * Returns url used to query latests firmware version
+ * @return url to latest version query
+ */
 String getVersionUrl() {
   return "https://metatavu.jfrog.io/artifactory/api/search/latestVersion?g=" + organization + "&a=" + module + "&repos=" + repository;
 }
 
+/**
+ * Performs query to check the latest firmware version and returns the latest version
+ * @return latest version as string
+ */
 String getLatestVersion() {
   HTTPClient http;
   http.begin(getVersionUrl());
@@ -31,10 +39,20 @@ String getLatestVersion() {
   return version;
 }
 
+/**
+ * Gets path to firmware file by version
+ * @param version Firmware version
+ * @return path to firmware
+ */
 String getFirmwarePath(String version) {
   return "https://metatavu.jfrog.io/artifactory/" + repository + "/" + organization + "/"+ module + "/" + module + "-" + version + ".bin";
 }
 
+/**
+ * Gets file location from firmware location header
+ * @param version firmware version
+ * @return path to firmware file
+ */
 String getFileUrl(String version) {
   String firmwarePath = getFirmwarePath(version);
   HTTPClient http;
@@ -52,6 +70,9 @@ String getFileUrl(String version) {
   return location;
 }
 
+/**
+ * Checks and updates firmware if new version is available
+ */
 void checkFirmwareUpdates() {
   // Fetch the latest firmware version
   const String latest = getLatestVersion();
@@ -67,13 +88,10 @@ void checkFirmwareUpdates() {
   processOTAUpdate(latest);
 }
 
-// A helper function to extract header value from header
-inline String getHeaderValue(String header, String headerName) {
-  return header.substring(strlen(headerName.c_str()));
-}
-
 /**
  * OTA update processing
+ * 
+ * @param version firmware version
  */
 void processOTAUpdate(const String &version) {
   String fileUrl = getFileUrl(version);
