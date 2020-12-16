@@ -2,12 +2,13 @@
 #include <MQTTClient.h>
 #include <ArduinoJson.h>
 #include "WiFi.h"
-#include "secrets.h"
 #include "message-parser.cpp"
+#include "artifactory-ota.h"
 
 #define MQTT_FLUSH_INTERVAL_MS 100
 #define START_RETRY_TIMEOUT_MS 30000
 #define TAG_DISAPPEARED_TIMEOUT_MS 1500
+#define OTA_CHECK_INTERVAL_MS 60000
 
 WiFiClient net = WiFiClient();
 MQTTClient client = MQTTClient(4096);
@@ -55,6 +56,7 @@ const uint32_t askHWVersionCommand[8] = { 0xA5, 0x5A, 0x00, 0x08, 0x00, 0x08, 0x
 
 unsigned long lastContinueAttempt = 0;
 unsigned long lastMqttFlush = 0;
+unsigned long lastOtaCheck = 0;
 
 static MessageParser parser;
 
@@ -71,7 +73,9 @@ void publishMQTTMessage(std::string epc, double strength, uint16_t antenna) {
   doc["strength"] = strength;
   char jsonBuffer[512];
   serializeJson(doc, jsonBuffer);
-  client.publish(MQTT_TOPIC_PREFIX + "/" + MQTT_TOPIC + "/" + deviceId + "/" + antenna, jsonBuffer);
+  String prefix = MQTT_TOPIC_PREFIX;
+  String topic = MQTT_TOPIC;
+  client.publish(prefix + "/" + topic + "/" + deviceId + "/" + antenna, jsonBuffer);
 }
 
 /**
@@ -184,7 +188,7 @@ void askHardwareVersion() {
  */
 void connectToNetwork() {
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
   Serial.println("Connecting to Wi-Fi");
 
   while (WiFi.status() != WL_CONNECTED) {
@@ -341,9 +345,13 @@ void setup() {
  * Main loop
  */
 void loop() {
-  
   if (!net.connected()) {
     connectToNetwork();
+  }
+
+  if (millis() - lastOtaCheck > OTA_CHECK_INTERVAL_MS) {
+    lastOtaCheck = millis();
+    checkFirmwareUpdates();
   }
 
   if (!client.connected()) {
