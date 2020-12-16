@@ -15,6 +15,9 @@ MQTTClient client = MQTTClient(4096);
 
 String deviceId = "";
 
+/**
+ * Struct for tag registry items
+ */
 struct TagRegistryItem {
   std::string epc;
   unsigned long lastSeen;
@@ -25,7 +28,7 @@ bool wifiConnected = false;
 static bool stopSuccessfull = false;
 static bool startSuccessfull = false;
 
-//Serial buffer
+// Serial buffer
 const uint32_t messageBufferSize = 256;
 uint32_t antennaInputBuffer[messageBufferSize];
 uint32_t antennaMessageLength = 0;
@@ -34,12 +37,12 @@ uint32_t antennaMessageLength = 0;
 const uint16_t messageStartMarker[2] = { 0xA5, 0x5A };
 const uint16_t messageEndMarker[2] = { 0x0D, 0x0A };
 
-//Epc registry
+// Epc registry
 const uint16_t registryBufferSize = 100;
 TagRegistryItem registry[registryBufferSize];
 uint16_t registryLength = 0;
 
-//Quere buffer
+// Quere buffer
 const uint16_t queueBufferSize = 100;
 ContinueInventoryMessage queue[queueBufferSize];
 uint16_t queueLength = 0;
@@ -366,7 +369,6 @@ void loop() {
 
   if (antennaMessageLength > 0) {
     parseAntennaMessage();
-    //printDeviceHexMessage();
     antennaMessageLength = 0;
   }
 
