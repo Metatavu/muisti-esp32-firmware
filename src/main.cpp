@@ -14,6 +14,9 @@ MQTTClient client = MQTTClient(4096);
 
 String deviceId = "";
 
+/**
+ * Struct for tag registry items
+ */
 struct TagRegistryItem {
   std::string epc;
   unsigned long lastSeen;
