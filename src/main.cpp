@@ -38,7 +38,7 @@ const uint16_t registryBufferSize = 100;
 TagRegistryItem registry[registryBufferSize];
 uint16_t registryLength = 0;
 
-//Quere buffer
+// Quere buffer
 const uint16_t queueBufferSize = 100;
 ContinueInventoryMessage queue[queueBufferSize];
 uint16_t queueLength = 0;
