@@ -2,6 +2,7 @@
 #include <MQTTClient.h>
 #include <ArduinoJson.h>
 #include "WiFi.h"
+#include <ETH.h>
 #include "message-parser.cpp"
 #include "artifactory-ota.h"
 
@@ -10,11 +11,13 @@
 #define TAG_DISAPPEARED_TIMEOUT_MS 1500
 #define SERIAL_MESSAGE_FAILED_TIMEOUT_MS 30000
 #define OTA_CHECK_INTERVAL_MS 60000
+#define NETWORK_CONNECTION_TIMEOUT_MS 15000
 
 WiFiClient net = WiFiClient();
 MQTTClient client = MQTTClient(4096);
 
 String deviceId = "";
+String hostname = "esp32-";
 
 /**
  * Struct for tag registry items
@@ -25,7 +28,7 @@ struct TagRegistryItem {
   int16_t antenna;
 };
 
-bool wifiConnected = false;
+bool ethConnected = false;
 static bool stopSuccessfull = false;
 static bool startSuccessfull = false;
 
@@ -183,15 +186,63 @@ void askHardwareVersion() {
  * Connect to network
  */
 void connectToNetwork() {
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
-  Serial.println("Connecting to Wi-Fi");
+  if (ethConnected) {
+    Serial.println("Ethernet connected, turning off Wi-Fi");
+    WiFi.mode(WIFI_OFF);
+  } else {
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(WIFI_SSID, WIFI_PASS);
+    Serial.println("Connecting to Wi-Fi");
+  }
 
-  while (WiFi.status() != WL_CONNECTED) {
+  long connectionStarted = millis();
+  while (WiFi.status() != WL_CONNECTED && !ethConnected) {
     delay(500);
     Serial.print(".");
+    if (millis() - connectionStarted > NETWORK_CONNECTION_TIMEOUT_MS) {
+      Serial.println("Network connection timed out, retrying...");
+      return;
+    }
   }
-  Serial.println("Wifi connected!");
+  Serial.println("Network connected!");
+}
+
+/**
+ * Handles ethernet events
+ */
+void onEthEvent(WiFiEvent_t event) {
+  switch (event) {
+    case SYSTEM_EVENT_ETH_START:
+      Serial.print("ETH Started with hostname: ");
+      Serial.println(hostname.c_str());
+      ETH.setHostname(hostname.c_str());
+      break;
+    case SYSTEM_EVENT_ETH_CONNECTED:
+      Serial.println("ETH Connected");
+      break;
+    case SYSTEM_EVENT_ETH_GOT_IP:
+      Serial.print("ETH IPv4: ");
+      Serial.print(ETH.localIP());
+      if (ETH.fullDuplex()) {
+        Serial.print(", FULL_DUPLEX");
+      }
+      Serial.print(", ");
+      Serial.print(ETH.linkSpeed());
+      Serial.println("Mbps");
+      ethConnected = true;
+      WiFi.disconnect();
+      break;
+    case SYSTEM_EVENT_ETH_DISCONNECTED:
+      Serial.println("ETH Disconnected");
+      ethConnected = false;
+      break;
+    case SYSTEM_EVENT_ETH_STOP:
+      Serial.println("ETH Stopped");
+      ethConnected = false;
+      break;
+    default:
+      break;
+  }
 }
 
 /**
@@ -213,6 +264,9 @@ void connectToMQTT() {
     Serial.println(client.lastError());
     Serial.print(".");
     delay(1000);
+    if (!net.connected()) {
+      connectToNetwork();
+    }
   }
 
   Serial.println("MQTT connected!");
@@ -333,11 +387,13 @@ void initializeCommunication() {
  */
 void setup() {
   deviceId = WiFi.macAddress();
+  hostname += deviceId;
   Serial.begin(9600);
   Serial1.begin(115200);
   Serial.println(deviceId);
   Serial.println(deviceId);
-  
+  WiFi.onEvent(onEthEvent);
+  ETH.begin();
   connectToNetwork();
   connectToMQTT();
   delay(50);
@@ -349,6 +405,7 @@ void setup() {
  */
 void loop() {
   if (!net.connected()) {
+    Serial.println("Network connection lost, reconnecting...");
     connectToNetwork();
   }
 
