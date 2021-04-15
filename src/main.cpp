@@ -57,6 +57,7 @@ uint16_t previousByte = 0;
 const uint32_t stopAntennaCommand[8] = { 0xA5, 0x5A, 0x00, 0x08, 0x8C, 0x84, 0x0D, 0x0A };
 const uint32_t startAntennaCommand[10] = { 0xA5, 0x5A, 0x00, 0x0A, 0x82, 0x27, 0x10, 0xBF, 0x0D, 0x0A };
 const uint32_t askHWVersionCommand[8] = { 0xA5, 0x5A, 0x00, 0x08, 0x00, 0x08, 0x0D, 0x0A };
+const uint32_t setRegionCommand[10] = { 0xA5, 0x5A, 0x00, 0x0A, 0x2C, 0x01, 0x04, 0x23, 0x0D, 0x0A };
 
 unsigned long lastContinueAttempt = 0;
 unsigned long lastMqttFlush = 0;
@@ -170,6 +171,15 @@ void stopInventory() {
 void continueInventory() {
   for (int i = 0; i < 10; i++) {
     Serial1.write(startAntennaCommand[i]);
+  }
+}
+
+/**
+ * Sends set region eu command to device
+ */
+void setEuRegion() {
+  for (int i = 0; i < 10; i++) {
+    Serial1.write(setRegionCommand[i]);
   }
 }
 
@@ -378,6 +388,8 @@ void parseAntennaMessage() {
  */
 void initializeCommunication() {
   stopInventory();
+  delay(50);
+  setEuRegion();
   delay(50);
   continueInventory();
 }
