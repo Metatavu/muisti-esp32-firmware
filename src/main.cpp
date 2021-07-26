@@ -284,6 +284,21 @@ void onEthEvent(WiFiEvent_t event) {
 void connectToMQTT() {
   Serial.println("Setting MQTT settings");
 
+  Serial.print("MQTT_USER:");
+  Serial.println(MQTT_USER);
+
+  Serial.print("MQTT_PASS:");
+  Serial.println(MQTT_PASS);
+
+  Serial.print("MQTT_TOPIC_PREFIX:");
+  Serial.println(MQTT_TOPIC_PREFIX);
+
+  Serial.print("MQTT_TOPIC:");
+  Serial.println(MQTT_TOPIC);
+
+  Serial.print("MQTT_CHANNEL_ENDPOINT:");
+  Serial.println(MQTT_CHANNEL_ENDPOINT);
+
   client.begin(MQTT_CHANNEL_ENDPOINT, 1883, net);
 
   client.onMessage(messageHandler);
