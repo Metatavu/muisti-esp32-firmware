@@ -1,5 +1,6 @@
 import requests
 import sys
+from os import getenv
 from os.path import basename
 
 Import('env')
@@ -18,25 +19,34 @@ project_config.read("platformio.ini")
 version = project_config.get("common", "release_version")
 artifactory_config = {k: v for k, v in project_config.items("artifactory")}
 
+
+def get_config(key):
+    value = artifactory_config.get(key)
+    if (value.startswith("${sysenv.")):
+        env_name = value[9:-1]
+        value = getenv(env_name)
+
+    return value
+
 #
 # Push new firmware to the artifactory storage using API
 #
 def publish_firmware(source, target, env):
     firmware_path = str(source[0])
-    firmware_name = artifactory_config.get("module") + "-" + version + ".bin"
+    firmware_name = get_config("module") + "-" + version + ".bin"
 
     print("Uploading {0} to Artifactory. Version: {1}".format(
         firmware_name, version))
 
     url = "/".join([
         "https://metatavu.jfrog.io", "artifactory",
-        artifactory_config.get("repository"),
-        artifactory_config.get("organization"), artifactory_config.get("module"), firmware_name
+        get_config("repository"),
+        get_config("organization"), get_config("module"), firmware_name
     ])
 
     headers = {
         "Content-type": "application/octet-stream",
-        "Authorization": "Bearer " + artifactory_config.get("api_token")
+        "Authorization": "Bearer " + get_config("api_token")
     }
 
     r = None
