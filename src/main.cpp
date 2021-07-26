@@ -225,7 +225,12 @@ void connectToNetwork() {
   } else {
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASS);
-    Serial.println("Connecting to Wi-Fi");
+    Serial.print("Connecting to Wi-Fi (");
+    Serial.print("ssid: ");
+    Serial.print(WIFI_SSID);
+    Serial.print(", pass: ");
+    Serial.print(WIFI_PASS);
+    Serial.println(")");
   }
 
   long connectionStarted = millis();
@@ -282,7 +287,18 @@ void onEthEvent(WiFiEvent_t event) {
  * Connect to MQTT 
 */
 void connectToMQTT() {
-  Serial.println("Setting MQTT settings");
+  Serial.print("Setting MQTT settings (");
+  Serial.print("user: ");
+  Serial.print(MQTT_USER);
+  Serial.print(", pass: ");
+  Serial.print(MQTT_PASS);
+  Serial.print(", topic prefix: ");
+  Serial.print(MQTT_TOPIC_PREFIX);
+  Serial.print(", topic: ");
+  Serial.print(MQTT_TOPIC);
+  Serial.print(", endpoint: ");
+  Serial.print(MQTT_CHANNEL_ENDPOINT);
+  Serial.println(")");
 
   client.begin(MQTT_CHANNEL_ENDPOINT, 1883, net);
 
