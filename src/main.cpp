@@ -287,13 +287,12 @@ void onEthEvent(WiFiEvent_t event) {
  * Connect to MQTT 
 */
 void connectToMQTT() {
-  Serial.println("Setting MQTT settings (");
-
+  Serial.print("Setting MQTT settings (");
   Serial.print("user: ");
   Serial.print(MQTT_USER);
   Serial.print(", pass: ");
   Serial.print(MQTT_PASS);
-  Serial.print(", topicPrefix: ");
+  Serial.print(", topic prefix: ");
   Serial.print(MQTT_TOPIC_PREFIX);
   Serial.print(", topic: ");
   Serial.print(MQTT_TOPIC);
