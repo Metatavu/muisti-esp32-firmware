@@ -1,0 +1,7 @@
+{
+  "WIFI_SSID": "<Your ssid>",
+  "WIFI_PASSWORD": "<Your wifi password >",
+  "MQTT_CHANNEL_ENDPOINT": "MQTT channel endpoint",
+  "MQTT_USER": "MQTT username",
+  "MQTT_PASS": "MQTT password"
+}
