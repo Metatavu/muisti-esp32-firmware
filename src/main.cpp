@@ -7,6 +7,8 @@
 #include "artifactory-ota.h"
 
 #define MQTT_FLUSH_INTERVAL_MS 100
+#define MQTT_CONNECT_TIMEOUT 10000
+#define MQTT_DEVICE_RESET_TIMEOUT 30000
 #define START_RETRY_TIMEOUT_MS 3000
 #define TAG_DISAPPEARED_TIMEOUT_MS 1500
 #define SERIAL_MESSAGE_FAILED_TIMEOUT_MS 30000
@@ -65,6 +67,7 @@ unsigned long lastContinueAttempt = 0;
 unsigned long lastMqttFlush = 0;
 unsigned long lastOtaCheck = 0;
 unsigned long lastMessageReceived = 0;
+unsigned long lastMqttConnection = 0;
 
 static MessageParser parser;
 
@@ -226,7 +229,7 @@ void connectToNetwork() {
   }
 
   long connectionStarted = millis();
-  while (WiFi.status() != WL_CONNECTED && !ethConnected) {
+  while (WiFi.status() != WL_CONNECTED && !ethConnected && !net.connected()) {
     delay(500);
     Serial.print(".");
     if (millis() - connectionStarted > NETWORK_CONNECTION_TIMEOUT_MS) {
@@ -290,12 +293,16 @@ void connectToMQTT() {
   deviceId.toCharArray(clientId, deviceId.length() + 1);
 
   Serial.println("Connecting to MQTT endpoint...");
+  long connectionStarted = millis();
   while (!client.connect(clientId, MQTT_USER, MQTT_PASS)) {
     Serial.println(client.lastError());
     Serial.print(".");
     delay(1000);
     if (!net.connected()) {
       connectToNetwork();
+    }
+    if (millis() - connectionStarted > MQTT_CONNECT_TIMEOUT) {
+      return;
     }
   }
 
@@ -440,6 +447,10 @@ void setup() {
  * Main loop
  */
 void loop() {
+  if (millis() - lastMqttConnection > MQTT_DEVICE_RESET_TIMEOUT) {
+    esp_restart();
+  }
+
   if (!net.connected()) {
     Serial.println("Network connection lost, reconnecting...");
     connectToNetwork();
@@ -452,6 +463,8 @@ void loop() {
 
   if (!client.connected()) {
     connectToMQTT();
+  } else {
+    lastMqttConnection = millis();
   }
 
   if (startSuccessfull && millis() - lastMessageReceived > SERIAL_MESSAGE_FAILED_TIMEOUT_MS) {
