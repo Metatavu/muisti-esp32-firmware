@@ -26,6 +26,9 @@ def get_config(key):
         env_name = value[9:-1]
         value = getenv(env_name)
 
+    if not value:
+        print("Warning: Config value for " + key + " could not be resolved.")
+
     return value
 
 #
