@@ -449,8 +449,13 @@ void setup() {
   hostname += deviceId;
   Serial.begin(9600);
   Serial1.begin(115200);
+  
+  Serial.print("Device ID: ");
   Serial.println(deviceId);
-  Serial.println(deviceId);
+  
+  Serial.print("Firmare version: ");
+  Serial.println(VERSION);
+
   WiFi.onEvent(onEthEvent);
   ETH.begin();
   connectToNetwork();
