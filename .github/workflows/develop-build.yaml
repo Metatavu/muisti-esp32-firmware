@@ -60,27 +60,16 @@ jobs:
       - name: Build PlatformIO Project
         run: |
           pio run -e release
-          pwd
-          ls -la .pio/build/release          
-
-      - name: Create version.txt
-        run: |
-          echo ${{ steps.tag_version.outputs.new_tag }} > version.txt
-
-      - name: Upload firmware.bin
+          mkdir -p update/${{ steps.tag_version.outputs.new_tag }}
+          mv .pio/build/release/firmware.bin update/${{ steps.tag_version.outputs.new_tag }}
+          echo ${{ steps.tag_version.outputs.new_tag }} > update/version.txt
+          ls -la update
+          
+      - name: Release firmware update
         uses: shallwefootball/s3-upload-action@master
         with:
           aws_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws_bucket: ${{ secrets.UPDATES_BUCKET }}
-          source_dir: .pio/build/release/firmware.bin
-          destination_dir: ${{ secrets.UPDATES_BUCKET_PATH }}/${{ steps.tag_version.outputs.new_tag }}
-
-      - name: Upload version.txt
-        uses: shallwefootball/s3-upload-action@master
-        with:
-          aws_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws_bucket: ${{ secrets.UPDATES_BUCKET }}
-          source_dir: version.txt
+          source_dir: update
           destination_dir: ${{ secrets.UPDATES_BUCKET_PATH }}
