@@ -2,10 +2,7 @@
 #include <Update.h>
 #include "artifactory-ota.h"
 
-String organization = ARTIFACTORY_ORGANIZATION;
-String module = ARTIFACTORY_MODULE;
-String repository = ARTIFACTORY_REPOSITORY;
-String token = ARTIFACTORY_API_TOKEN;
+String updatesUrl = UPDATES_URL;
 
 // Variables to validate firmware content
 volatile int contentLength = 0;
@@ -16,7 +13,7 @@ volatile bool isValidContentType = false;
  * @return url to latest version query
  */
 String getVersionUrl() {
-  return "https://metatavu.jfrog.io/artifactory/api/search/latestVersion?g=" + organization + "&a=" + module + "&repos=" + repository;
+  return updatesUrl + "/version.txt";
 }
 
 /**
@@ -25,8 +22,7 @@ String getVersionUrl() {
  */
 String getLatestVersion() {
   HTTPClient http;
-  http.begin(getVersionUrl());
-  http.addHeader("Authorization", "Bearer " + token);
+  http.begin(UPDATES_URL);
   int httpResponseCode = http.GET();
   if (httpResponseCode != 200) {
     Serial.println("Failed to load firmware version");
@@ -45,7 +41,7 @@ String getLatestVersion() {
  * @return path to firmware
  */
 String getFirmwarePath(String version) {
-  return "https://metatavu.jfrog.io/artifactory/" + repository + "/" + organization + "/"+ module + "/" + module + "-" + version + ".bin";
+  return updatesUrl + "/" + version + ".bin";
 }
 
 /**
@@ -58,7 +54,6 @@ String getFileUrl(String version) {
   HTTPClient http;
   const char * headerKeys[] = {"Location"};
   http.begin(firmwarePath);
-  http.addHeader("Authorization", "Bearer " + token);
   http.collectHeaders(headerKeys, 1);
   int httpResponseCode = http.GET();
   if (httpResponseCode <= 0) {
