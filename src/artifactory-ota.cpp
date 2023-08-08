@@ -3,10 +3,29 @@
 #include "artifactory-ota.h"
 
 String updatesUrl = UPDATES_URL;
+const char *versionName = VERSION_NAME;
 
 // Variables to validate firmware content
 volatile int contentLength = 0;
 volatile bool isValidContentType = false;
+
+/**
+ * Parses version string to integer. Method expects version string in format x.y.z. 
+ * 
+ * If version string contains more than 3 parts, only first 3 parts are used. So for example version with branch name still returns the same version as version without branch name (e.g. 1.2.19-feature-14-new-distribution-system.0 will return 102019)
+ */
+int parseVersion(const char *versionString) {
+    int firstPart = 0, secondPart = 0, thirdPart = 0;
+    sscanf(versionString, "%d.%d.%d", &firstPart, &secondPart, &thirdPart);
+    return firstPart * 100000 + secondPart * 1000 + thirdPart;
+}
+
+/**
+ * Returns current firmware version
+ */
+int getCurrentVersion() {
+  return parseVersion(versionName);
+}
 
 /**
  * Returns url used to query latests firmware version
@@ -41,7 +60,7 @@ String getLatestVersion() {
  * @return path to firmware
  */
 String getFirmwarePath(String version) {
-  return updatesUrl + "/" + version + ".bin";
+  return updatesUrl + "/" + version + "/firmware.bin";
 }
 
 /**
@@ -70,16 +89,14 @@ String getFileUrl(String version) {
  */
 void checkFirmwareUpdates() {
   // Fetch the latest firmware version
-  const String latest = getLatestVersion();
-  if (latest.length() == 0) {
-    Serial.println("Could not load info about the latest firmware, so nothing to update. Continue ...");
-    return;
-  } else if (atoi(latest.c_str()) <= VERSION) {
+  String latestVersionName = getLatestVersion();
+  int latestVersion = parseVersion(latestVersionName.c_str());
+  if (latestVersion <= getCurrentVersion()) {
     return;
   }
 
-  Serial.println("There is a new version of firmware available: v." + latest);
-  processOTAUpdate(latest);
+  Serial.println("There is a new version of firmware available: " + latestVersionName);
+  processOTAUpdate(latestVersionName);
 }
 
 /**

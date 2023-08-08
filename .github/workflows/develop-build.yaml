@@ -71,7 +71,7 @@ jobs:
           aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws_bucket: ${{ secrets.UPDATES_BUCKET }}
           source_dir: .pio/build/release/firmware.bin
-          destination_dir: ${{ secrets.UPDATES_BUCKET_PATH }}
+          destination_dir: ${{ secrets.UPDATES_BUCKET_PATH }}/${{ steps.tag_version.outputs.new_tag }}
 
       - name: Upload version.txt
         uses: shallwefootball/s3-upload-action@master

@@ -454,7 +454,7 @@ void setup() {
   Serial.println(deviceId);
   
   Serial.print("Firmare version: ");
-  Serial.println(VERSION);
+  Serial.println(VERSION_NAME);
 
   WiFi.onEvent(onEthEvent);
   ETH.begin();
