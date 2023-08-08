@@ -58,7 +58,10 @@ jobs:
         run: pip install --upgrade platformio
 
       - name: Build PlatformIO Project
-        run: pio run -e release
+        run: |
+          pio run -e release
+          pwd
+          ls -la .pio/build/release          
 
       - name: Create version.txt
         run: |
