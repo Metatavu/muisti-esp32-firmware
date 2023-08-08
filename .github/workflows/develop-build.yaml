@@ -59,7 +59,6 @@ jobs:
 
       - name: Build PlatformIO Project
         run: pio run -e release
-          ./gradlew assembleRelease
 
       - name: Create version.txt
         run: |
