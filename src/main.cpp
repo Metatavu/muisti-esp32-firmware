@@ -4,7 +4,7 @@
 #include "WiFi.h"
 #include <ETH.h>
 #include "message-parser.cpp"
-#include "artifactory-ota.h"
+#include "ota-update.h"
 
 #define MQTT_FLUSH_INTERVAL_MS 100
 #define MQTT_CONNECT_TIMEOUT 10000

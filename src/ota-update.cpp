@@ -1,6 +1,6 @@
 #include <HTTPClient.h>
 #include <Update.h>
-#include "artifactory-ota.h"
+#include "ota-update.h"
 
 String updatesUrl = UPDATES_URL;
 const char *versionName = VERSION_NAME;

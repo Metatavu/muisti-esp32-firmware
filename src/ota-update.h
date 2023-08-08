@@ -1,5 +1,5 @@
-#ifndef ARTIFACTORY_OTA_H
-#define ARTIFACTORY_OTA_H
+#ifndef OTA_UPDATE_H
+#define OTA_UPDATE_H
 
 #include <Arduino.h>
 
