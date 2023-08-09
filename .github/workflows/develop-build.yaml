@@ -58,6 +58,16 @@ jobs:
         run: pip install --upgrade platformio
 
       - name: Build PlatformIO Project
+        env:
+          PIO_UPDATES_URL: ${{ secrets.PIO_UPDATES_URL }}
+          PIO_WIFI_SSID: ${{ secrets.PIO_WIFI_SSID }}
+          PIO_WIFI_PASSWORD: ${{ secrets.PIO_WIFI_PASSWORD }}
+          PIO_MQTT_ENDPOINT: ${{ secrets.PIO_MQTT_ENDPOINT }}
+          PIO_MQTT_TOPIC_PREFIX: ${{ secrets.PIO_MQTT_TOPIC_PREFIX }}
+          PIO_MQTT_TOPIC: ${{ secrets.PIO_MQTT_TOPIC }}
+          PIO_MQTT_USER: ${{ secrets.PIO_MQTT_USER }}
+          PIO_MQTT_PASSWORD: ${{ secrets.PIO_MQTT_PASSWORD }}
+
         run: |
           pio run -e release
           mkdir -p update/${{ steps.tag_version.outputs.new_tag }}
