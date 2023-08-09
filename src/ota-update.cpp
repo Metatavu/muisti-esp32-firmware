@@ -41,7 +41,7 @@ String getVersionUrl() {
  */
 String getLatestVersion() {
   HTTPClient http;
-  http.begin(UPDATES_URL);
+  http.begin(getVersionUrl());
   int httpResponseCode = http.GET();
   if (httpResponseCode != 200) {
     Serial.println("Failed to load firmware version");
@@ -92,6 +92,7 @@ void checkFirmwareUpdates() {
   String latestVersionName = getLatestVersion();
   int latestVersion = parseVersion(latestVersionName.c_str());
   if (latestVersion <= getCurrentVersion()) {
+    Serial.println("Current firmware is up to date");
     return;
   }
 

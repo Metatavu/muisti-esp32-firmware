@@ -6,4 +6,4 @@
 void checkFirmwareUpdates();
 void processOTAUpdate(const String &version);
 
-#endif // SECURE_OTA_H
+#endif // OTA_UPDATE_H
