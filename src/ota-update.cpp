@@ -50,7 +50,10 @@ String getLatestVersion() {
     return "";
   }
   String version = http.getString();
+  version.trim();
+  
   http.end();
+
   return version;
 }
 
@@ -64,34 +67,13 @@ String getFirmwarePath(String version) {
 }
 
 /**
- * Gets file location from firmware location header
- * @param version firmware version
- * @return path to firmware file
- */
-String getFileUrl(String version) {
-  String firmwarePath = getFirmwarePath(version);
-  HTTPClient http;
-  const char * headerKeys[] = {"Location"};
-  http.begin(firmwarePath);
-  http.collectHeaders(headerKeys, 1);
-  int httpResponseCode = http.GET();
-  if (httpResponseCode <= 0) {
-    Serial.println("Failed to get file url");
-    return "";
-  }
-  String location = http.header("Location");
-  http.end();
-  return location;
-}
-
-/**
  * Checks and updates firmware if new version is available
  */
 void checkFirmwareUpdates() {
-  // Fetch the latest firmware version
   String latestVersionName = getLatestVersion();
   int latestVersion = parseVersion(latestVersionName.c_str());
-  if (latestVersion <= getCurrentVersion()) {
+  int currentVersion = getCurrentVersion();
+  if (latestVersion <= currentVersion) {
     Serial.println("Current firmware is up to date");
     return;
   }
@@ -106,54 +88,60 @@ void checkFirmwareUpdates() {
  * @param version firmware version
  */
 void processOTAUpdate(const String &version) {
-  String fileUrl = getFileUrl(version);
-  if (fileUrl.length() == 0) {
-    Serial.println("Failed to resolve file url");
+  String firmwarePath = getFirmwarePath(version);
+
+  Serial.println("Starting OTA update from " + firmwarePath);
+  
+  HTTPClient http;
+  const char * headerKeys[] = {"Content-Type"};
+  http.begin(firmwarePath);
+  http.collectHeaders(headerKeys, 1);
+  int httpResponseCode = http.GET();
+
+  if (httpResponseCode != 200) {
+    Serial.println("Failed to load firmware");
+    Serial.println(httpResponseCode);
+    http.end();
     return;
   }
 
-  HTTPClient http;
-  const char * headerKeys[] = {"Content-Type"};
-  http.begin(fileUrl);
-  http.collectHeaders(headerKeys, 1);
-  int httpResponseCode = http.GET();
-  if (httpResponseCode > 0) {
-    contentLength = http.getSize();
-    String contentType = http.header("Content-Type");
-    if (contentType == "application/octet-stream") {
-      isValidContentType = true;
-    }
+  contentLength = http.getSize();
+  if (contentLength <= 0) {
+    Serial.println("No content for OTA update (length 0)");
+    http.end();
+    return;
   }
 
-  // check whether we have everything for OTA update
-  if (contentLength && isValidContentType) {
-    if (Update.begin(contentLength)) {
-      Serial.println("Starting Over-The-Air update. This may take some time to complete ...");
-      size_t written = Update.writeStream(http.getStream());
+  String contentType = http.header("Content-Type");
+  if (contentType != "application/octet-stream") {
+    Serial.println("Invalid content type: " + http.header("Content-Type"));
+    http.end();
+    return;
+  }
 
-      if (written == contentLength) {
-        Serial.println("Written : " + String(written) + " successfully");
-      } else {
-        Serial.println("Written only : " + String(written) + "/" + String(contentLength) + ". Retry?");
-        // Retry??
-      }
+  if (Update.begin(contentLength)) {
+    Serial.println("Starting Over-The-Air update. This may take some time to complete ...");
+    size_t written = Update.writeStream(http.getStream());
 
-      if (Update.end()) {
-        if (Update.isFinished()) {
-          Serial.println("OTA update has successfully completed. Rebooting ...");
-          ESP.restart();
-        } else {
-          Serial.println("Something went wrong! OTA update hasn't been finished properly.");
-        }
+    if (written == contentLength) {
+      Serial.println("Written : " + String(written) + " successfully");
+    } else {
+      Serial.println("Written only : " + String(written) + "/" + String(contentLength) + ". Retry?");
+      // Retry??
+    }
+
+    if (Update.end()) {
+      if (Update.isFinished()) {
+        Serial.println("OTA update has successfully completed. Rebooting ...");
+        ESP.restart();
       } else {
-        Serial.println("An error Occurred. Error #: " + String(Update.getError()));
+        Serial.println("Something went wrong! OTA update hasn't been finished properly.");
       }
     } else {
-      Serial.println("There isn't enough space to start OTA update");
-      http.end();
+      Serial.println("An error Occurred. Error #: " + String(Update.getError()));
     }
   } else {
-    Serial.println("There was no valid content in the response from the OTA server!");
+    Serial.println("There isn't enough space to start OTA update");
     http.end();
   }
 }
