@@ -7,7 +7,6 @@ const char *versionName = VERSION_NAME;
 
 // Variables to validate firmware content
 volatile int contentLength = 0;
-volatile bool isValidContentType = false;
 
 /**
  * Parses version string to integer. Method expects version string in format x.y.z. 
