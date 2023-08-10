@@ -14,11 +14,6 @@ jobs:
           submodules: true
           fetch-depth: 0
 
-      - uses: actions/setup-java@v3
-        with:
-          distribution: temurin
-          java-version: 8
-
       - name: Bump version and push tag
         id: tag_version
         uses: mathieudutour/github-tag-action@v6.1
