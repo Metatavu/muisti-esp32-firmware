@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - develop
-      - feature-14-new-distribution-system
 jobs:
   build:
     runs-on: ubuntu-latest
