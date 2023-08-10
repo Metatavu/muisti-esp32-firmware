@@ -1,0 +1,81 @@
+name: Build and release firmware (master)
+on:
+  push:
+    branches:
+      - master
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: master
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - name: Bump version and push tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v6.1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tag_prefix: ""
+
+      - name: Update version to platformio.ini
+        run: |
+          echo "Updating version to ${{ steps.tag_version.outputs.new_tag }}"
+          
+          sed -i 's/release_version =.*/release_version = ${{ steps.tag_version.outputs.new_tag }}/g' platformio.ini
+          
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add platformio.ini
+          git commit -m "Updated version"
+          git checkout develop
+          git merge master
+
+      - name: Push version changes to develop
+        uses: ad-m/github-push-action@v0.6.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ github.ref }}
+
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio/.cache
+          key: ${{ runner.os }}-pio
+          
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install PlatformIO Core
+        run: pip install --upgrade platformio
+
+      - name: Build PlatformIO Project
+        env:
+          PIO_UPDATES_URL: ${{ secrets.PIO_UPDATES_URL }}
+          PIO_WIFI_SSID: ${{ secrets.PIO_WIFI_SSID }}
+          PIO_WIFI_PASSWORD: ${{ secrets.PIO_WIFI_PASSWORD }}
+          PIO_MQTT_ENDPOINT: ${{ secrets.PIO_MQTT_ENDPOINT }}
+          PIO_MQTT_TOPIC_PREFIX: ${{ secrets.PIO_MQTT_TOPIC_PREFIX }}
+          PIO_MQTT_TOPIC: ${{ secrets.PIO_MQTT_TOPIC }}
+          PIO_MQTT_USER: ${{ secrets.PIO_MQTT_USER }}
+          PIO_MQTT_PASSWORD: ${{ secrets.PIO_MQTT_PASSWORD }}
+
+        run: |
+          pio run -e release
+          mkdir -p update/${{ steps.tag_version.outputs.new_tag }}
+          mv .pio/build/release/firmware.bin update/${{ steps.tag_version.outputs.new_tag }}
+          echo ${{ steps.tag_version.outputs.new_tag }} > update/version.txt
+          ls -la update
+          
+      - name: Release firmware update
+        uses: shallwefootball/s3-upload-action@master
+        with:
+          aws_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws_bucket: ${{ secrets.UPDATES_BUCKET }}
+          source_dir: update
+          destination_dir: ${{ secrets.UPDATES_BUCKET_PATH }}
