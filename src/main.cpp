@@ -72,13 +72,13 @@ unsigned long lastMqttConnection = 0;
 static MessageParser parser;
 
 /**
- * Publishes message to mqtt broker
+ * Publishes antenna update message to mqtt broker
  * 
  * @param epc tag epc
  * @param strength signal strength
  * @param antenna antenna id
  */
-void publishMQTTMessage(std::string epc, double strength, uint16_t antenna) {
+void publishAntennaMqttMessage(std::string epc, double strength, uint16_t antenna) {
   StaticJsonDocument<200> doc;
   doc["tag"] = epc;
   doc["strength"] = strength;
@@ -87,6 +87,20 @@ void publishMQTTMessage(std::string epc, double strength, uint16_t antenna) {
   String prefix = MQTT_TOPIC_PREFIX;
   String topic = MQTT_TOPIC;
   client.publish(prefix + "/" + topic + "/" + deviceId + "/" + antenna, jsonBuffer);
+}
+
+/**
+ * Publishes online message to mqtt broker
+ */
+void publishOnlineMqttMessage() {
+  StaticJsonDocument<200> doc;
+  doc["status"] = "online";
+  doc["version"] = VERSION_NAME;
+  char jsonBuffer[512];
+  serializeJson(doc, jsonBuffer);
+  String prefix = MQTT_TOPIC_PREFIX;
+  String topic = MQTT_TOPIC;
+  client.publish(prefix + "/" + topic + "/" + deviceId + "/status", jsonBuffer);
 }
 
 /**
@@ -137,7 +151,7 @@ void addToQueue(ContinueInventoryMessage message) {
 void flushQueue() {
   for (uint16_t i = 0; i < queueLength; i++) {
     ContinueInventoryMessage message = queue[i];
-    publishMQTTMessage(message.epc, message.strength, message.antenna);
+    publishAntennaMqttMessage(message.epc, message.strength, message.antenna);
   }
   queueLength = 0;
 
@@ -145,7 +159,7 @@ void flushQueue() {
   uint16_t newRegistrySize = 0;
   for (uint16_t i = 0; i < registryLength; i++) {
     if (now - registry[i].lastSeen > TAG_DISAPPEARED_TIMEOUT_MS) {
-      publishMQTTMessage(registry[i].epc, 0.0, registry[i].antenna);
+      publishAntennaMqttMessage(registry[i].epc, 0.0, registry[i].antenna);
     } else {
       registry[newRegistrySize] = registry[i];
       newRegistrySize++;
@@ -321,6 +335,8 @@ void connectToMQTT() {
       return;
     }
   }
+
+  publishOnlineMqttMessage();
 
   Serial.println("MQTT connected!");
 }
