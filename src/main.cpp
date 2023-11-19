@@ -1,4 +1,4 @@
-#include <WiFiClient.h>
+#include <WiFiClientSecure.h>
 #include <MQTTClient.h>
 #include <ArduinoJson.h>
 #include "WiFi.h"
@@ -8,18 +8,21 @@
 
 #define MQTT_FLUSH_INTERVAL_MS 100
 #define MQTT_CONNECT_TIMEOUT 10000
-#define MQTT_DEVICE_RESET_TIMEOUT 30000
+#define MQTT_DEVICE_RESET_TIMEOUT 60000
 #define START_RETRY_TIMEOUT_MS 3000
 #define TAG_DISAPPEARED_TIMEOUT_MS 1500
 #define SERIAL_MESSAGE_FAILED_TIMEOUT_MS 30000
 #define OTA_CHECK_INTERVAL_MS 60000
 #define NETWORK_CONNECTION_TIMEOUT_MS 15000
 
-WiFiClient net = WiFiClient();
-MQTTClient client = MQTTClient(4096);
-
-String deviceId = "";
-String hostname = "esp32-";
+/**
+ * Struct for MQTT server
+ */
+struct MqttServer {
+  char host[100];
+  char protocol[10];
+  uint16_t port;
+};
 
 /**
  * Struct for tag registry items
@@ -29,6 +32,13 @@ struct TagRegistryItem {
   unsigned long lastSeen;
   int16_t antenna;
 };
+
+static int8_t mqttServerIndex = MQTT_URL_COUNT - 1;
+WiFiClientSecure net = WiFiClientSecure();
+MQTTClient client = MQTTClient(4096);
+
+String deviceId = "";
+String hostname = "esp32-";
 
 bool ethConnected = false;
 static bool stopSuccessfull = false;
@@ -256,6 +266,9 @@ void connectToNetwork() {
       return;
     }
   }
+
+  net.setInsecure();
+
   Serial.println("Network connected!");
 }
 
@@ -298,11 +311,51 @@ void onEthEvent(WiFiEvent_t event) {
 }
 
 /**
+ * Parses mqtt server url
+ * 
+ * @param url mqtt server url
+ * @param server mqtt server struct
+ */
+void parseMqttServerUrl(const char* url, MqttServer* server) {
+  sscanf(url, "%[^:]://%[^:]:%hu", server->protocol, server->host, &server->port);
+}
+
+/**
+ * Parses mqtt server urls
+ * 
+ * @param urls mqtt server urls
+ */
+
+MqttServer getMqttServer() {
+  mqttServerIndex = (mqttServerIndex + 1) % MQTT_URL_COUNT;
+  char mqttUrls[] = MQTT_URLS;
+  char* url = strtok(mqttUrls, ",");
+
+  uint8_t i = 0;
+  while (url != NULL && i < MQTT_URL_COUNT) {
+    if (i == mqttServerIndex) {
+      MqttServer server;
+      parseMqttServerUrl(url, &server);
+      return server;
+    } else {
+      url = strtok(NULL, ",");
+      i++;
+    }
+  }
+
+  throw "No MQTT servers found";
+};
+
+/**
  * Connect to MQTT 
 */
 void connectToMQTT() {
+  MqttServer mqttServer = getMqttServer();
+  
   Serial.print("Setting MQTT settings (");
-  Serial.print("user: ");
+  Serial.print("Server index: ");
+  Serial.print(mqttServerIndex);
+  Serial.print(", user: ");
   Serial.print(MQTT_USER);
   Serial.print(", pass: ");
   Serial.print(MQTT_PASS);
@@ -310,11 +363,15 @@ void connectToMQTT() {
   Serial.print(MQTT_TOPIC_PREFIX);
   Serial.print(", topic: ");
   Serial.print(MQTT_TOPIC);
-  Serial.print(", endpoint: ");
-  Serial.print(MQTT_CHANNEL_ENDPOINT);
+  Serial.print(", host: ");
+  Serial.print(mqttServer.host);
+  Serial.print(", port: ");
+  Serial.print(mqttServer.port);
+  Serial.print(", protocol: ");
+  Serial.print(mqttServer.protocol);
   Serial.println(")");
 
-  client.begin(MQTT_CHANNEL_ENDPOINT, 1883, net);
+  client.begin(mqttServer.host, mqttServer.port, net);
 
   client.onMessage(messageHandler);
   client.setOptions(10, true, 5000);
